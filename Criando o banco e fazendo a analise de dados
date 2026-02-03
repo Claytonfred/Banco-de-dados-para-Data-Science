@@ -1,0 +1,73 @@
+CREATE TABLE Itens_Pedido(ID_Item INT NOT NULL Auto_Increment,
+ID_Pedido INT,
+ID_Produto INT,
+Quantidade int,
+Preco DECIMAL(10.2),
+PRIMARY KEY(ID_Item));
+
+CREATE TABLE Pecas (
+Cod_Peca VARCHAR(10) PRIMARY KEY, -- Ex: 'P01'
+Descricao_Peca VARCHAR(100) NOT NULL,
+Categoria VARCHAR(50),
+Preco_Padrao DECIMAL(10, 2) NOT NULL
+);
+CREATE TABLE Notas_Fiscais (
+Num_Nota INT PRIMARY KEY,
+Data_Emissao DATE NOT NULL,
+Cod_Cliente INT NOT NULL,
+CONSTRAINT FK_Nota_Cliente FOREIGN KEY (Cod_Cliente)
+REFERENCES Clientes(Cod_Cliente)
+);
+
+CREATE TABLE Itens_Nota (
+Num_Nota INT,
+Cod_Peca VARCHAR(10),
+Qtde_Vendida INT NOT NULL,
+Preco_Praticado DECIMAL(10, 2) NOT NULL, -- O preço pode variar na negociação
+PRIMARY KEY (Num_Nota, Cod_Peca), -- Chave Composta
+CONSTRAINT FK_Item_Nota FOREIGN KEY (Num_Nota)
+REFERENCES Notas_Fiscais(Num_Nota),
+CONSTRAINT FK_Item_Peca FOREIGN KEY (Cod_Peca)
+REFERENCES Pecas(Cod_Peca)
+);
+
+CREATE DATABASE LojaPecasDB;
+USE LojaPecasDB;
+
+CREATE TABLE Clientes (
+Cod_Cliente INT PRIMARY KEY,
+Nome_Cliente VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE Cliente_Emails (
+Id_Email INT AUTO_INCREMENT PRIMARY KEY,
+Cod_Cliente INT NOT NULL,
+Email VARCHAR(100) NOT NULL,
+CONSTRAINT FK_Email_Cliente FOREIGN KEY (Cod_Cliente)
+REFERENCES Clientes(Cod_Cliente)
+ON DELETE CASCADE
+);
+INSERT INTO Clientes (Cod_Cliente, Nome_Cliente) VALUES
+(50, 'Oficina Silva'),
+(61, 'Auto Center X');
+
+INSERT INTO Cliente_Emails (Cod_Cliente, Email) VALUES
+(50, 'silva@uol.com.br'),
+(50, 'contato@silva.com'),
+(61, 'compras@autox.com');
+
+INSERT INTO Pecas (Cod_Peca, Descricao_Peca, Categoria, Preco_Padrao) VALUES
+('P01', 'Filtro de Óleo', 'Motor', 30.00),
+('P05', 'Pastilha Freio', 'Freios', 80.00),
+('P09', 'Amortecedor', 'Suspensão', 200.00);
+
+INSERT INTO Notas_Fiscais (Num_Nota, Data_Emissao, Cod_Cliente) VALUES
+(1001, '2023-10-01', 50),
+(1002, '2023-10-02', 61),
+(1003, '2023-10-02', 50);
+
+INSERT INTO Itens_Nota (Num_Nota, Cod_Peca, Qtde_Vendida, Preco_Praticado) VALUES
+(1001, 'P01', 2, 30.00), -- Nota 1001 teve 2 itens (P01 e P05)
+(1001, 'P05', 4, 80.00),
+(1002, 'P01', 10, 30.00), -- Nota 1002 teve 1 item
+(1003, 'P09', 2, 200.00); -- Nota 1003 teve 1 item
