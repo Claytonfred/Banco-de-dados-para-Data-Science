@@ -1,0 +1,230 @@
+import csv
+from collections import Counter, defaultdict
+import matplotlib.pyplot as plt
+import pandas as pd
+
+caminho = "/content/Base de dados - Relabório de ocorrências.csv"
+
+dados_brutos = []
+with open(caminho, "r", encoding="utf-8-sig") as arquivo:
+    leitor = csv.DictReader(arquivo)
+    for linha in leitor:
+        dados_brutos.append(linha)
+
+print(f"Total de registros brutos: {len(dados_brutos)}")
+
+
+# ELIMINANDO DADOS NULOS/AUSENTES
+
+colunas_obrigatorias = ['Data', 'DP', 'Localidade', 'munic', 'Regiao',
+                          'Ocorrencias', 'Qtde', 'Qtde Últimos 30 dias',
+                          'Qtde Últimos 60 dias', 'Qtde Últimos 90 dias',
+                          'Qtde YoY', 'Part. Ocorrencia']
+
+limite = 10
+dados = []
+descartados = 0
+
+for registro in dados_brutos:
+    valido = True
+    for coluna in colunas_obrigatorias:
+        valor = registro.get(coluna)
+        if valor is None or valor.strip() == '' or valor.strip().upper() == 'NAN':
+            valido = False
+            break
+    if valido:
+        dados.append(registro)
+    else:
+        if descartados < limite:
+            print('registro descartado (dado nulo/ausente):', registro)
+        descartados += 1
+
+print(f"\nTotal de registros descartados por dado nulo: {descartados}")
+print(f"Total de registros válidos: {len(dados)}")
+print(dados[0])
+
+
+# EXTRAINDO COLUNAS (já sem nulos)
+
+Data = [registro["Data"] for registro in dados]
+DP = [registro["DP"] for registro in dados]
+Localidade = [registro["Localidade"] for registro in dados]
+munic = [registro["munic"] for registro in dados]
+Regiao = [registro["Regiao"] for registro in dados]
+Ocorrencias = [registro["Ocorrencias"] for registro in dados]
+
+Qtde = [int(registro["Qtde"]) for registro in dados]
+Qtde_30d = [int(registro["Qtde Últimos 30 dias"]) for registro in dados]
+Qtde_60d = [int(registro["Qtde Últimos 60 dias"]) for registro in dados]
+Qtde_90d = [int(registro["Qtde Últimos 90 dias"]) for registro in dados]
+Qtde_YoY = [float(registro["Qtde YoY"].replace('%', '')) / 100 for registro in dados]
+Part_Ocorrencia = [float(registro["Part. Ocorrencia"].replace('%', '')) / 100 for registro in dados]
+
+# Contagem de tipos de ocorrência (top 10)
+contagem = Counter(Ocorrencias)
+print("\nTipos de ocorrência (top 10 por nº de registros):")
+for tipo, qtd in contagem.most_common(limite):
+    print(tipo, '->', qtd)
+
+
+# RANKING DA VIOLÊNCIA
+
+
+# Ranking por MUNICÍPIO (soma de Qtde)
+qtde_por_municipio = defaultdict(int)
+for m, q in zip(munic, Qtde):
+    qtde_por_municipio[m] += q
+
+ranking_municipios = sorted(qtde_por_municipio.items(), key=lambda x: x[1], reverse=True)
+
+print("\nRanking de violência por município (top 10):")
+for i, (m, total) in enumerate(ranking_municipios[:limite], start=1):
+    print(f"{i}º - {m}: {total} ocorrências")
+
+# Ranking por TIPO DE OCORRÊNCIA (soma de Qtde)
+qtde_por_tipo = defaultdict(int)
+for tipo, q in zip(Ocorrencias, Qtde):
+    qtde_por_tipo[tipo] += q
+
+ranking_tipos = sorted(qtde_por_tipo.items(), key=lambda x: x[1], reverse=True)
+
+print("\nRanking de tipos de ocorrência (top 10):")
+for i, (tipo, total) in enumerate(ranking_tipos[:limite], start=1):
+    print(f"{i}º - {tipo}: {total} ocorrências")
+
+
+
+# Gráfico 1: Top 10 municípios mais violentos
+top_municipios = ranking_municipios[:limite]
+nomes_mun = [m for m, _ in top_municipios]
+totais_mun = [t for _, t in top_municipios]
+
+plt.figure(figsize=(10, 6))
+barras = plt.barh(nomes_mun, totais_mun, color='crimson')
+plt.gca().invert_yaxis()
+plt.xlabel('Total de ocorrências')
+plt.title(f'Top {limite} municípios com mais ocorrências (dados limpos)')
+
+for barra, total in zip(barras, totais_mun):
+    plt.text(barra.get_width() + max(totais_mun)*0.01, barra.get_y() + barra.get_height()/2,
+              f'{total}', va='center', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+
+# Gráfico 2: Top 10 tipos de ocorrência
+
+df1 = pd.DataFrame()
+
+top_tipos = ranking_tipos[:limite]
+nomes_tipo = [t for t, _ in top_tipos]
+totais_tipo = [q for _, q in top_tipos]
+
+plt.figure(figsize=(10, 6))
+barras2 = plt.barh(nomes_tipo, totais_tipo, color='darkorange')
+plt.gca().invert_yaxis()
+plt.xlabel('Total de ocorrências')
+plt.title(f'Top {limite} tipos de ocorrência mais frequentes (dados limpos)')
+
+for barra, total in zip(barras2, totais_tipo):
+    plt.text(barra.get_width() + max(totais_tipo)*0.01, barra.get_y() + barra.get_height()/2,
+              f'{total}', va='center', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+
+
+# ÁRVORE DE DECISÃO
+
+
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+coluna_alvo = 'Regiao'
+coluna_alvo = 'munic'
+
+df = pd.DataFrame({
+    'munic': munic,
+    'Regiao': Regiao,
+    'Ocorrencias': Ocorrencias,
+    'Qtde': Qtde,
+    'Qtde_30d': Qtde_30d,
+    'Qtde_60d': Qtde_60d,
+    'Qtde_90d': Qtde_90d,
+    'Qtde_YoY': Qtde_YoY,
+    'Part_Ocorrencia': Part_Ocorrencia,
+})
+
+
+le_ocorrencia = LabelEncoder()
+df['Ocorrencias_cod'] = le_ocorrencia.fit_transform(df['Ocorrencias'])
+
+
+le_alvo = LabelEncoder()
+df['alvo_cod'] = le_alvo.fit_transform(df[coluna_alvo])
+
+colunas_features = ['Qtde', 'Qtde_30d', 'Qtde_60d', 'Qtde_90d',
+                     'Qtde_YoY', 'Part_Ocorrencia', 'Ocorrencias_cod']
+
+X = df[colunas_features]
+y = df['alvo_cod']
+
+
+X_treino, X_teste, y_treino, y_teste = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+
+# max_depth limita a profundidade para evitar overfitting
+
+arvore = DecisionTreeClassifier(
+    max_depth=5,
+    random_state=42,
+    criterion='gini'
+)
+arvore.fit(X_treino, y_treino)
+
+
+y_previsto = arvore.predict(X_teste)
+acuracia = accuracy_score(y_teste, y_previsto)
+
+print(f"\nÁrvore de decisão - alvo: '{coluna_alvo}'")
+print(f"Acurácia no conjunto de teste: {acuracia:.2%}")
+print("\nRelatório de classificação:")
+print(classification_report(
+    y_teste, y_previsto,
+    target_names=le_alvo.classes_,
+    zero_division=0
+))
+
+
+importancias = pd.Series(arvore.feature_importances_, index=colunas_features)
+importancias = importancias.sort_values(ascending=False)
+print("Importância das variáveis:")
+print(importancias)
+
+# Gráfico 3: visualização da árvore de decisão
+plt.figure(figsize=(20, 10))
+plot_tree(
+    arvore,
+    feature_names=colunas_features,
+    class_names=le_alvo.classes_,
+    filled=True,
+    rounded=True,
+    fontsize=8,
+    max_depth=3
+)
+plt.title(f"Árvore de decisão - previsão de '{coluna_alvo}' (3 primeiros níveis)")
+plt.tight_layout()
+plt.show()
+
+# Gráfico 4: importância das variáveis
+plt.figure(figsize=(10, 6))
+plt.barh(importancias.index, importancias.values, color='seagreen')
+plt.gca().invert_yaxis()
+plt.xlabel('Importância')
+plt.title('Importância das variáveis na árvore de decisão')
+plt.tight_layout()
+plt.show()
